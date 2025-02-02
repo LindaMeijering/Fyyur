@@ -29,9 +29,6 @@ class Genre(str, Enum):
     @classmethod
     def choices(cls):
         return [(genre.value, genre.value) for genre in cls]
-    @classmethod
-    def values(cls):
-        return [genre.value for genre in cls]
 
 
 class State(str, Enum):
@@ -145,13 +142,11 @@ class VenueForm(FlaskForm):
     )
     genres = SelectMultipleField(
         'genres',
-        validators=[
-            DataRequired(),
-            AnyOf(Genre.values(), message='Please select valid genres')
-        ],
+        validators=[DataRequired()],
         choices=Genre.choices(),
         coerce=str
     )
+
     facebook_link = StringField(
         'facebook_link', validators=[URL()]
     )
@@ -201,13 +196,11 @@ class ArtistForm(FlaskForm):
     )
     genres = SelectMultipleField(
         'genres',
-        validators=[
-            DataRequired(),
-            AnyOf(Genre.values(), message='Please select valid genres')
-        ],
+        validators=[DataRequired()],
         choices=Genre.choices(),
         coerce=str
     )
+
     facebook_link = StringField(
         'facebook_link', validators=[URL()]
      )
