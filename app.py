@@ -1,19 +1,29 @@
 # ----------------------------------------------------------------------------#
 # Imports
 # ----------------------------------------------------------------------------#
-from flask import Flask, render_template, request, flash, redirect, url_for
-from flask_sqlalchemy import SQLAlchemy
 import logging
-from logging import Formatter, FileHandler
+import secrets
+from logging import FileHandler, Formatter
+
+from flask import (Flask, flash, jsonify, redirect, render_template, request,
+                   url_for)
+from flask_migrate import Migrate
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.exc import SQLAlchemyError
+
 from filters import register_template_filters
 from forms import *
-from flask_migrate import Migrate
+
 # ----------------------------------------------------------------------------#
 # App Config.
 # ----------------------------------------------------------------------------#
 
 app = Flask(__name__)
 app.config.from_object('config')
+# Replace with a real secret key
+app.config['SECRET_KEY'] = secrets.token_urlsafe(32)
+# Optional separate CSRF key
+# app.config['WTF_CSRF_SECRET_KEY'] = secrets.token_urlsafe(32)
 register_template_filters(app)
 db = SQLAlchemy(app)
 
@@ -43,6 +53,9 @@ class Genre(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False, unique=True)
 
+    def __repr__(self):
+        return f'<Genre {self.name}>'
+
 
 class Area(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -66,7 +79,10 @@ class Venue(db.Model):
     website = db.Column(db.String, nullable=False)
     genres = db.relationship(
         'Genre', secondary=venue_genres, backref='venue', lazy=True)
-    
+
+    def __repr__(self):
+        return f'<Venue {self.name}>'
+
 
 class Artist(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -135,27 +151,109 @@ def create_venue_form():
     return render_template('forms/new_venue.html', form=form)
 
 
+logger = logging.getLogger(__name__)
+
+
+class VenueCreationService:
+    def __init__(self, db):
+        self.db = db
+
+    def _get_or_create_area(self, city, state):
+        area = Area.query.filter_by(city=city, state=state).first()
+        if not area:
+            area = Area(city=city, state=state)
+            self.db.session.add(area)
+            self.db.session.flush()
+        return area
+
+
+    def _get_or_create_genre(self, genre_name):
+        try:
+            genre = Genre.query.filter_by(name=genre_name).first()
+            if not genre:
+                genre = Genre(name=genre_name)
+                self.db.session.add(genre)
+                self.db.session.flush()
+            return genre
+        except SQLAlchemyError as e:
+            self.db.session.rollback()
+            logger.error(f"Database error creating genre '{genre_name}': {str(e)}")
+            raise
+        except Exception as e:
+            self.db.session.rollback()
+            logger.error(
+                f"Unexpected error creating genre '{genre_name}': {str(e)}")
+            raise
+
+    def create_venue(self, form):
+        try:
+            area = self._get_or_create_area(form.city.data, form.state.data)
+
+            venue = Venue(
+                name=form.name.data,
+                address=form.address.data,
+                phone=form.phone.data,
+                image_link=form.image_link.data,
+                facebook_link=form.facebook_link.data,
+                website=form.website_link.data,
+                seeking_talent=form.seeking_talent.data,
+                seeking_description=form.seeking_description.data,
+                area_id=area.id
+            )
+            self.db.session.add(venue)
+
+            for genre_name in form.genres.data:
+                genre = self._get_or_create_genre(genre_name)
+                venue.genres.append(genre)
+
+            self.db.session.commit()
+            return venue
+
+        except SQLAlchemyError as e:
+            self.db.session.rollback()
+            logger.error(f"Database error creating venue: {str(e)}")
+            raise
+        except Exception as e:
+            self.db.session.rollback()
+            logger.error(f"Unexpected error creating venue: {str(e)}")
+            raise
+
+
 @app.route('/venues/create', methods=['POST'])
 def create_venue_submission():
-    # TODO: insert form data as a new Venue record in the db, instead
-    # TODO: modify data to be the data object returned from db insertion
+    form = VenueForm()
 
-    # on successful db insert, flash success
-    flash('Venue ' + request.form['name'] + ' was successfully listed!')
-    # TODO: on unsuccessful db insert, flash an error instead.
-    # e.g., flash('An error occurred. Venue ' + data.name + ' could not be listed.')
-    # see: http://flask.pocoo.org/docs/1.0/patterns/flashing/
-    return render_template('pages/home.html')
+    if form.validate_on_submit():
+        service = VenueCreationService(db)
+        try:
+            venue = service.create_venue(form)
+            flash(f'Venue {venue.name} was successfully listed!')
+            return redirect(url_for('show_venue', venue_id=venue.id))
+        except Exception as e:
+            flash(
+                f'An error occurred. Venue {form.name.data} could not be listed.')
+            logger.error(f"Venue creation failed: {str(e)}")
+            return redirect(url_for('create_venue_form'))
+
+    for field, errors in form.errors.items():
+        for error in errors:
+            flash(f'Error in {field}: {error}')
+    return redirect(url_for('create_venue_form'))
 
 
 @app.route('/venues/<venue_id>', methods=['DELETE'])
 def delete_venue(venue_id):
-    # TODO: Complete this endpoint for taking a venue_id, and using
-    # SQLAlchemy ORM to delete a record. Handle cases where the session commit could fail.
-
-    # BONUS CHALLENGE: Implement a button to delete a Venue on a Venue Page, have it so that
-    # clicking that button delete it from the db then redirect the user to the homepage
-    return None
+    try:
+        venue = Venue.query.get(venue_id)
+        db.session.delete(venue)
+        db.session.commit()
+        return jsonify({'success': True}), 200
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        print(f"An error occurred: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 400
+    finally:
+        db.session.close()
 
 #  Artists
 #  ----------------------------------------------------------------
@@ -163,34 +261,19 @@ def delete_venue(venue_id):
 
 @app.route('/artists')
 def artists():
-    # TODO: replace with real data returned from querying the database
-    data = [{
-        "id": 4,
-        "name": "Guns N Petals",
-    }, {
-        "id": 5,
-        "name": "Matt Quevedo",
-    }, {
-        "id": 6,
-        "name": "The Wild Sax Band",
-    }]
+    data = Artist.query.all()
     return render_template('pages/artists.html', artists=data)
 
 
 @app.route('/artists/search', methods=['POST'])
 def search_artists():
-    # TODO: implement search on artists with partial string search. Ensure it is case-insensitive.
-    # seach for "A" should return "Guns N Petals", "Matt Quevado", and "The Wild Sax Band".
-    # search for "band" should return "The Wild Sax Band".
+    search_term = request.form.get('search_term', '')
+    data = Artist.query.filter(Artist.name.ilike(f'%{search_term}%')).all()
     response = {
-        "count": 1,
-        "data": [{
-            "id": 4,
-            "name": "Guns N Petals",
-            "num_upcoming_shows": 0,
-        }]
+        "count": len(data),
+        "data": data
     }
-    return render_template('pages/search_artists.html', results=response, search_term=request.form.get('search_term', ''))
+    return render_template('pages/search_artists.html', results=response, search_term=search_term)
 
 
 @app.route('/artists/<int:artist_id>')
@@ -270,6 +353,8 @@ def show_artist(artist_id):
     }
     data = list(filter(lambda d: d['id'] ==
                 artist_id, [data1, data2, data3]))[0]
+    artist = Artist.query.get(artist_id)
+    return render_template('pages/show_artist.html', artist=artist)
     return render_template('pages/show_artist.html', artist=data)
 
 #  Update
@@ -307,7 +392,7 @@ def edit_artist_submission(artist_id):
 @app.route('/venues/<int:venue_id>/edit', methods=['GET'])
 def edit_venue(venue_id):
 
-    venue = Venue.query.get(venue_id)    
+    venue = Venue.query.get(venue_id)
     form = VenueForm(obj=venue)
     form.city.data = venue.area.city
     form.state.data = venue.area.state

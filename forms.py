@@ -5,7 +5,7 @@ from wtforms.validators import DataRequired, AnyOf, URL, Regexp
 from enum import Enum
 
 
-class Genre(str, Enum):
+class GenreEnum(str, Enum):
     ALTERNATIVE = 'Alternative'
     BLUES = 'Blues'
     CLASSICAL = 'Classical'
@@ -31,7 +31,7 @@ class Genre(str, Enum):
         return [(genre.value, genre.value) for genre in cls]
 
 
-class State(str, Enum):
+class StateEnum(str, Enum):
     AL = 'AL'
     AK = 'AK'
     AZ = 'AZ'
@@ -116,9 +116,9 @@ class VenueForm(FlaskForm):
         'state',
         validators=[
             DataRequired(),
-            AnyOf(State.values(), message='Please select a valid state')
+            AnyOf(StateEnum.values(), message='Please select a valid state')
         ],
-        choices=State.choices(),
+        choices=StateEnum.choices(),
         coerce=str
     )
     address = StringField(
@@ -143,7 +143,7 @@ class VenueForm(FlaskForm):
     genres = SelectMultipleField(
         'genres',
         validators=[DataRequired()],
-        choices=Genre.choices(),
+        choices=GenreEnum.choices(),
         coerce=str
     )
 
@@ -154,7 +154,8 @@ class VenueForm(FlaskForm):
         'website_link', validators=[URL()]
     )
 
-    seeking_talent = BooleanField( 'seeking_talent' )
+    seeking_talent = BooleanField(
+        'seeking_talent', default=False, false_values=('false', False, '', None))
 
     seeking_description = StringField(
         'seeking_description'
@@ -173,9 +174,9 @@ class ArtistForm(FlaskForm):
         'state',
         validators=[
             DataRequired(),
-            AnyOf(State.values(), message='Please select a valid state')
+            AnyOf(StateEnum.values(), message='Please select a valid state')
         ],
-        choices=State.choices(),
+        choices=StateEnum.choices(),
         coerce=str
     )
     phone = StringField(
@@ -197,7 +198,7 @@ class ArtistForm(FlaskForm):
     genres = SelectMultipleField(
         'genres',
         validators=[DataRequired()],
-        choices=Genre.choices(),
+        choices=GenreEnum.choices(),
         coerce=str
     )
 
