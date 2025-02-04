@@ -1,8 +1,10 @@
 from datetime import datetime
-from flask_wtf import FlaskForm
-from wtforms import StringField, SelectField, SelectMultipleField, DateTimeField, BooleanField
-from wtforms.validators import DataRequired, AnyOf, URL, Regexp
 from enum import Enum
+
+from flask_wtf import FlaskForm
+from wtforms import (BooleanField, DateTimeField, SelectField,
+                     SelectMultipleField, StringField)
+from wtforms.validators import URL, AnyOf, DataRequired, Optional, Regexp
 
 
 class GenreEnum(str, Enum):
@@ -151,7 +153,8 @@ class VenueForm(FlaskForm):
         'facebook_link', validators=[URL()]
     )
     website_link = StringField(
-        'website_link', validators=[URL()]
+        'Website Link',
+        validators=[Optional(), URL(message='Invalid URL.')]
     )
 
     seeking_talent = BooleanField(
@@ -207,8 +210,9 @@ class ArtistForm(FlaskForm):
      )
 
     website_link = StringField(
-        'website_link', validators=[URL()]
-     )
+        'Website Link',
+        validators=[Optional(), URL(message='Invalid URL.')]
+    )
 
     seeking_venue = BooleanField( 'seeking_venue' )
 

@@ -64,6 +64,7 @@ class Artist(db.Model):
     shows = db.relationship('Show', backref='artist', lazy=True)
     genres = db.relationship(
         'Genre', secondary=artist_genres, backref='artists', lazy=True)
+    website = db.Column(db.String, nullable=True)
 
 
 class Show(db.Model):
