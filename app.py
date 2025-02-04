@@ -14,6 +14,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from filters import register_template_filters
 from forms import *
 from models import db, Genre, Area, Venue, Artist, Show
+from sqlalchemy import or_
 
 # ----------------------------------------------------------------------------#
 # App Config.
@@ -359,6 +360,23 @@ def create_show_submission():
     # e.g., flash('An error occurred. Show could not be listed.')
     # see: http://flask.pocoo.org/docs/1.0/patterns/flashing/
     return render_template('pages/home.html')
+
+
+@app.route('/shows/search', methods=['POST'])
+def search_shows():
+    search_term = request.form.get('search_term', '')
+
+    data = Show.query.join(Artist).join(Venue).filter(
+        or_(
+            Artist.name.ilike(f'%{search_term}%'),
+            Venue.name.ilike(f'%{search_term}%')
+        )
+    ).all()
+    response = {
+        "count": len(data),
+        "data": data
+    }
+    return render_template('pages/search_shows.html', results=response, search_term=search_term)
 
 
 @app.errorhandler(404)
