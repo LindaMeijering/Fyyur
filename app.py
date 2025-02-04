@@ -79,6 +79,7 @@ def create_venue_form():
 
 logger = logging.getLogger(__name__)
 
+
 def _get_or_create_area(city, state):
     area = Area.query.filter_by(city=city, state=state).first()
     if not area:
@@ -86,6 +87,7 @@ def _get_or_create_area(city, state):
         db.session.add(area)
         db.session.flush()
     return area
+
 
 def _get_or_create_genre(genre_name):
     try:
@@ -105,6 +107,8 @@ def _get_or_create_genre(genre_name):
         logger.error(
             f"Unexpected error creating genre '{genre_name}': {str(e)}")
         raise
+
+
 class CreationService:
     def __init__(self, db):
         self.db = db
@@ -143,36 +147,36 @@ class CreationService:
             raise
 
     def create_artist(self, form):
-            try:
-                area = _get_or_create_area(
-                    form.city.data, form.state.data)
+        try:
+            area = _get_or_create_area(
+                form.city.data, form.state.data)
 
-                artist = Artist(
-                    name=form.name.data,
-                    phone=form.phone.data,
-                    image_link=form.image_link.data,
-                    facebook_link=form.facebook_link.data,
-                    seeking_venue=form.seeking_venue.data,
-                    seeking_description=form.seeking_description.data,
-                    area_id=area.id
-                )
-                self.db.session.add(artist)
+            artist = Artist(
+                name=form.name.data,
+                phone=form.phone.data,
+                image_link=form.image_link.data,
+                facebook_link=form.facebook_link.data,
+                seeking_venue=form.seeking_venue.data,
+                seeking_description=form.seeking_description.data,
+                area_id=area.id
+            )
+            self.db.session.add(artist)
 
-                for genre_name in form.genres.data:
-                    genre = _get_or_create_genre(genre_name)
-                    artist.genres.append(genre)
+            for genre_name in form.genres.data:
+                genre = _get_or_create_genre(genre_name)
+                artist.genres.append(genre)
 
-                self.db.session.commit()
-                return artist
+            self.db.session.commit()
+            return artist
 
-            except SQLAlchemyError as e:
-                self.db.session.rollback()
-                logger.error(f"Database error creating venue: {str(e)}")
-                raise
-            except Exception as e:
-                self.db.session.rollback()
-                logger.error(f"Unexpected error creating venue: {str(e)}")
-                raise
+        except SQLAlchemyError as e:
+            self.db.session.rollback()
+            logger.error(f"Database error creating venue: {str(e)}")
+            raise
+        except Exception as e:
+            self.db.session.rollback()
+            logger.error(f"Unexpected error creating venue: {str(e)}")
+            raise
 
 
 @app.route('/venues/create', methods=['POST'])
@@ -286,6 +290,7 @@ def edit_artist_submission(artist_id):
         logger.error("Unexpected error updating artist: %s", str(e))
         raise
 
+
 @app.route('/venues/<int:venue_id>/edit', methods=['GET'])
 def edit_venue(venue_id):
     venue = Venue.query.get(venue_id)
@@ -298,9 +303,37 @@ def edit_venue(venue_id):
 
 @app.route('/venues/<int:venue_id>/edit', methods=['POST'])
 def edit_venue_submission(venue_id):
-    # TODO: take values from the form submitted, and update existing
-    # venue record with ID <venue_id> using the new attributes
-    return redirect(url_for('show_venue', venue_id=venue_id))
+    form = VenueForm(request.form)
+    venue = Venue.query.get(venue_id)
+    try:
+        venue.name = form.name.data
+        venue.adress = form.name.data
+        venue.phone = form.phone.data
+        venue.image_link = form.image_link.data
+        venue.facebook_link = form.facebook_link.data
+        venue.seeking_talent = form.seeking_talent.data
+        venue.seeking_description = form.seeking_description.data
+        venue.area_id = _get_or_create_area(
+            city=form.city.data, state=form.state.data).id
+
+        venue.genres.clear()
+        for genre_name in form.genres.data:
+            genre = _get_or_create_genre(genre_name=genre_name)
+            if genre not in venue.genres:
+                venue.genres.append(genre)
+
+        db.session.commit()
+        return render_template('pages/show_venue.html', venue=venue)
+
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        logger.error("Database error updating venue: %s", str(e))
+        raise
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error("Unexpected error updating venue: %s", str(e))
+        raise
 
 #  Create Artist
 #  ----------------------------------------------------------------
@@ -336,6 +369,7 @@ def create_artist_submission():
 #  Shows
 #  ----------------------------------------------------------------
 
+
 @app.route('/shows')
 def shows():
     data = Show.query.all()
@@ -351,6 +385,7 @@ def create_shows():
 
 @app.route('/shows/create', methods=['POST'])
 def create_show_submission():
+    
     # called to create new shows in the db, upon submitting new show listing form
     # TODO: insert form data as a new Show record in the db, instead
 
