@@ -171,11 +171,32 @@ class CreationService:
 
         except SQLAlchemyError as e:
             self.db.session.rollback()
-            logger.error(f"Database error creating venue: {str(e)}")
+            logger.error(f"Database error creating artist: {str(e)}")
             raise
         except Exception as e:
             self.db.session.rollback()
-            logger.error(f"Unexpected error creating venue: {str(e)}")
+            logger.error(f"Unexpected error creating artist: {str(e)}")
+            raise
+
+
+    def create_show(self, form):
+        try:
+            show = Show(
+                artist_id=int(form.artist_id.data),
+                venue_id=int(form.venue_id.data),
+                start_time=form.start_time.data
+            )
+            self.db.session.add(show)
+            self.db.session.commit()
+            return show
+
+        except SQLAlchemyError as e:
+            self.db.session.rollback()
+            logger.error(f"Database error creating show: {str(e)}")
+            raise
+        except Exception as e:
+            self.db.session.rollback()
+            logger.error(f"Unexpected error creating show: {str(e)}")
             raise
 
 
@@ -385,16 +406,24 @@ def create_shows():
 
 @app.route('/shows/create', methods=['POST'])
 def create_show_submission():
-    
-    # called to create new shows in the db, upon submitting new show listing form
-    # TODO: insert form data as a new Show record in the db, instead
+    form = ShowForm()
 
-    # on successful db insert, flash success
-    flash('Show was successfully listed!')
-    # TODO: on unsuccessful db insert, flash an error instead.
-    # e.g., flash('An error occurred. Show could not be listed.')
-    # see: http://flask.pocoo.org/docs/1.0/patterns/flashing/
-    return render_template('pages/home.html')
+    if form.validate_on_submit():
+        service = CreationService(db)
+        try:
+            show = service.create_show(form)
+            flash(f'Show was successfully listed!')
+            return redirect(url_for('shows'))
+        except Exception as e:
+            flash(
+                f'An error occurred. Show could not be listed.')
+            logger.error(f"Show creation failed: {str(e)}")
+            return redirect(url_for('create_shows'))
+
+    for field, errors in form.errors.items():
+        for error in errors:
+            flash(f'Error in {field}: {error}')
+    return redirect(url_for('create_shows'))
 
 
 @app.route('/shows/search', methods=['POST'])
