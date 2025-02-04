@@ -71,9 +71,6 @@ def create_venue_form():
     return render_template('forms/new_venue.html', form=form)
 
 
-logger = logging.getLogger(__name__)
-
-
 @app.route('/venues/create', methods=['POST'])
 def create_venue_submission():
     form = VenueForm()
